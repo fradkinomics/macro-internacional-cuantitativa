@@ -1,0 +1,192 @@
+\documentclass[11pt,a4paper]{article}
+
+% ------------------------------------------------------------------
+% Paquetes
+% ------------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\IfFileExists{spanish.ldf}{\usepackage[spanish,es-nodecimaldot,es-noshorthands]{babel}}{}
+\usepackage[sc]{mathpazo}          % Palatino, como en el material del curso
+\linespread{1.05}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx,subcaption,booktabs}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[most]{tcolorbox}
+\usepackage[font=small,labelfont={bf,color=udesa}]{caption}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{udesa}{RGB}{38,64,145}
+\definecolor{udesalight}{RGB}{232,236,247}
+\definecolor{udesagreen}{RGB}{96,163,72}
+
+% Nombres en español aunque falte babel-spanish
+\renewcommand{\figurename}{Figura}
+\renewcommand{\tablename}{Cuadro}
+\providecommand{\contentsname}{Índice}
+
+% Títulos de sección
+\titleformat{\section}{\Large\bfseries\color{udesa}}{\thesection.}{0.6em}{}[{\color{udesa}\titlerule[0.8pt]}]
+\titleformat{\subsection}{\large\bfseries\color{udesa}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.6em}{0.9em}
+
+% Encabezado y pie
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{udesa}\textsc{Macroeconomía Internacional Cuantitativa}}
+\fancyhead[R]{\small\color{udesa}Problem Set 1 --- Modelos de búsqueda}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Recuadro para el resultado principal de cada sección
+\newtcolorbox{resultado}{enhanced,colback=udesalight,colframe=udesa,
+  boxrule=0pt,leftrule=3pt,arc=0pt,left=8pt,right=8pt,top=6pt,bottom=6pt,
+  fonttitle=\bfseries}
+
+% ------------------------------------------------------------------
+% Datos de la carátula
+% ------------------------------------------------------------------
+\newcommand{\alumno}{Martín Fradkin}
+\newcommand{\materia}{Macroeconomía Internacional Cuantitativa}
+\newcommand{\profesor}{Francisco Roldán}
+\newcommand{\numps}{1}
+\newcommand{\titulo}{Modelos de Búsqueda}
+\newcommand{\fecha}{16 de octubre de 2026}
+
+\begin{document}
+
+% ==================================================================
+% CARÁTULA
+% ==================================================================
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[udesa] (current page.north west) rectangle ([yshift=-1.1cm]current page.north east);
+  \fill[udesagreen] ([yshift=-1.1cm]current page.north west) rectangle ([yshift=-1.25cm]current page.north east);
+  \fill[udesa] (current page.south west) rectangle ([yshift=2.2cm]current page.south east);
+  \fill[udesagreen] ([yshift=2.2cm]current page.south west) rectangle ([yshift=2.35cm]current page.south east);
+  \node[anchor=south,text=white,font=\small\scshape] at ([yshift=0.85cm]current page.south)
+    {Departamento de Economía \quad·\quad Universidad de San Andrés};
+\end{tikzpicture}
+
+\centering
+\vspace*{1.2cm}
+\includegraphics[width=0.62\textwidth]{logo_udesa.pdf}
+
+\vspace{2.2cm}
+{\large\scshape\color{udesa}\materia\par}
+\vspace{0.9cm}
+{\color{udesa}\rule{0.55\textwidth}{0.6pt}\par}
+\vspace{0.6cm}
+{\fontsize{15}{18}\selectfont\scshape Problem Set \numps\par}
+\vspace{0.35cm}
+{\fontsize{32}{38}\selectfont\bfseries\color{udesa}\titulo\par}
+\vspace{0.5cm}
+{\color{udesa}\rule{0.55\textwidth}{0.6pt}\par}
+
+\vfill
+\begin{tabular}{r@{\hspace{1.2em}}l}
+  \textsc{\color{udesa}Alumno}   & \alumno \\[4pt]
+  \textsc{\color{udesa}Profesor} & \profesor \\[4pt]
+  \textsc{\color{udesa}Fecha}    & \fecha
+\end{tabular}
+\vspace*{3.2cm}
+\end{titlepage}
+
+% ==================================================================
+% INTRODUCCIÓN
+% ==================================================================
+\section*{Modelo y resolución numérica}
+
+Se trabaja con el modelo de McCall resuelto en clase,
+\[
+v(w)=\max\left\{\frac{u(w)}{1-\beta},\; u(b)+\beta\int v(z)\,dF(z)\right\},
+\]
+con los parámetros por defecto del código del curso: utilidad lineal ($\gamma=0$), $\beta=0.96$, $b=1$ y ofertas $w\sim\mathcal N(1,\,0.05^2)$ discretizadas sobre una grilla equiespaciada en $[0.5,\,2]$. La solución es una regla de corte: se acepta toda oferta $w\geq w^\star$. Con utilidad lineal, el salario de reserva satisface
+\begin{equation}\label{eq:ws}
+w^\star-b=\frac{\beta}{1-\beta}\int_{w^\star}^{\infty}(w-w^\star)\,dF(w),
+\end{equation}
+es decir, el costo de rechazar una oferta igual a $w^\star$ se iguala al valor de la opción de seguir buscando. Salvo indicación contraria, se usa una grilla de $N_w=2000$ puntos. En el caso base, $w^\star=1.062$.
+
+% ==================================================================
+\section{Estáticas comparadas}
+% ==================================================================
+
+Se resolvió el modelo para 41 valores de $b\in[0.5,\,1.5]$ (con $\beta=0.96$) y 41 valores de $\beta\in[0.8,\,0.99]$ (con $b=1$), registrando $w^\star$ en cada caso. El ejercicio se repitió con $N_w=50$ y $N_w=2000$ (Figura~\ref{fig:estaticas}).
+
+\begin{figure}[h!]
+\centering
+\begin{subfigure}{.49\textwidth}\includegraphics[width=\linewidth]{figures/wstar_b_N50.pdf}\caption{$w^\star(b)$, $N_w=50$}\end{subfigure}
+\begin{subfigure}{.49\textwidth}\includegraphics[width=\linewidth]{figures/wstar_beta_N50.pdf}\caption{$w^\star(\beta)$, $N_w=50$}\end{subfigure}\\[4pt]
+\begin{subfigure}{.49\textwidth}\includegraphics[width=\linewidth]{figures/wstar_b_N2000.pdf}\caption{$w^\star(b)$, $N_w=2000$}\end{subfigure}
+\begin{subfigure}{.49\textwidth}\includegraphics[width=\linewidth]{figures/wstar_beta_N2000.pdf}\caption{$w^\star(\beta)$, $N_w=2000$}\end{subfigure}
+\caption{Salario de reserva en función de $b$ y de $\beta$ para dos resoluciones de la grilla.}
+\label{fig:estaticas}
+\end{figure}
+
+\paragraph{Resolución de la grilla.} Como $w^\star$ sólo puede tomar valores de la grilla, con $N_w=50$ (paso $\approx0.03$, comparable al desvío de $F$) la estática comparada es una escalera y sobreestima el salario de reserva ($w^\star(\beta=0.99)=1.112$ contra $1.086$ con $N_w=2000$). Con $N_w=2000$ el paso es $\approx0.0008$ y las curvas resultan continuas a efectos prácticos.
+
+\paragraph{Efecto de $b$.} Un mayor consumo en desempleo abarata la espera y eleva $w^\star$, pero el efecto depende de dónde se ubique $b$ respecto del soporte de $F$. Para $b$ bajo la pendiente es reducida ($w^\star$ pasa de $0.999$ a $\approx1.04$ entre $b=0.5$ y $b=0.9$): el salario de reserva está anclado por el valor de opción de la distribución de ofertas, no por $b$. Cuando $b$ se acerca a la cola superior de $F$, la integral en \eqref{eq:ws} tiende a cero, $w^\star\to b$ y la pendiente pasa a ser uno ($w^\star(1.5)=1.50$). En ese tramo el salario de reserva supera prácticamente todas las ofertas posibles y el agente no acepta nunca.
+
+\paragraph{Efecto de $\beta$.} Un agente más impaciente (menor $\beta$) descuenta más el beneficio de esperar una oferta mejor y reduce su salario de reserva, que cae de $1.086$ con $\beta=0.99$ a $1.032$ con $\beta=0.8$. La relación es convexa: por el factor $\beta/(1-\beta)$ en \eqref{eq:ws}, $w^\star$ es poco sensible a $\beta$ lejos de uno y muy sensible cerca de uno.
+
+\begin{resultado}
+El salario de reserva crece con $b$ y con $\beta$, pero no de manera uniforme: lo determina el valor de opción de seguir buscando cuando $b$ es bajo, y $b$ mismo cuando éste se aproxima a la cola superior de la distribución de salarios. La paciencia lo afecta de forma convexa, con mayor sensibilidad cerca de $\beta=1$.
+\end{resultado}
+
+% ==================================================================
+\section{Simulaciones}
+% ==================================================================
+
+Con el modelo base resuelto se simularon $K=10\,000$ historias de búsqueda, registrando en cada una el número de ofertas $T$ hasta la aceptación (Figura~\ref{fig:hist} y Cuadro~\ref{tab:T}).
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.6\textwidth]{figures/hist_T.pdf}
+\caption{Distribución empírica del tiempo de parada $T$ ($K=10\,000$ simulaciones).}
+\label{fig:hist}
+\end{figure}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{cccccccc}
+\toprule
+Media & $1/p$ & $q_{25}$ & Mediana & $q_{75}$ & $q_{90}$ & $q_{99}$ & Máximo\\
+\midrule
+9.33 & 9.19 & 3 & 7 & 13 & 21 & 41 & 80\\
+\bottomrule
+\end{tabular}
+\caption{Estadísticos de $T$. $p=\Pr(w\geq w^\star)=0.109$.}
+\label{tab:T}
+\end{table}
+
+Como las ofertas son i.i.d.\ y la regla de decisión es estacionaria, en cada período la oferta se acepta con la misma probabilidad $p=1-F(w^\star)$. El tiempo de parada sigue entonces una distribución geométrica, $\Pr(T=t)=(1-p)^{t-1}p$, con $\mathbb E[T]=1/p$. La simulación lo confirma: la moda está en $T=1$, las frecuencias decaen a una tasa constante y la media simulada ($9.33$) se ubica dentro del error muestral del valor teórico ($9.19$; el desvío estándar de la media es $\approx0.09$). La distribución es marcadamente asimétrica: la mediana es 7, pero el 1\% de las historias supera los 41 períodos.
+
+\begin{resultado}
+El tiempo de búsqueda es geométrico con parámetro $p=1-F(w^\star)$: no tiene memoria y toda la información del problema de decisión se resume en $w^\star$ a través de $p$. Aun con agentes idénticos, la duración del desempleo es muy dispersa y está dominada por la suerte en la secuencia de ofertas.
+\end{resultado}
+
+% ==================================================================
+\section{Cómo cambia $\mathbb{E}[T]$ con la paciencia}
+% ==================================================================
+
+Para 25 valores de $\beta\in[0.9,\,0.99]$ se resolvió el modelo, se simularon $10\,000$ historias y se calculó la media de $T$. La Figura~\ref{fig:ET} la compara con el valor teórico $1/p$.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.6\textwidth]{figures/ET_beta.pdf}
+\caption{$\mathbb E[T]$ en función de $\beta$: media simulada ($10\,000$ historias por punto) y valor teórico $1/p$.}
+\label{fig:ET}
+\end{figure}
+
+La duración esperada de la búsqueda crece con la paciencia y lo hace de manera convexa: pasa de $5.6$ períodos con $\beta=0.9$ a $23.0$ con $\beta=0.99$. Se combinan dos efectos. Por un lado, $w^\star(\beta)$ es convexa (Sección~1). Por otro, como $w^\star$ ya se ubica por encima de la media de $F$, cada aumento lo desplaza hacia la cola, donde la masa remanente $p$ cae proporcionalmente más y $1/p$ crece aceleradamente. Los tramos planos de la curva reflejan la discretización: valores cercanos de $\beta$ pueden asignarse al mismo punto de la grilla para $w^\star$.
+
+\begin{resultado}
+Cerca de $\beta=1$, pequeños cambios en la paciencia generan grandes cambios en la duración esperada del desempleo, porque el salario de reserva se adentra en la cola de la distribución de ofertas.
+\end{resultado}
+
+\end{document}

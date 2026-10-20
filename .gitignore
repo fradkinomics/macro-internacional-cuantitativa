@@ -1,0 +1,14 @@
+# Se ignora todo lo que está en la raíz...
+/*
+# ...salvo las carpetas de problem sets y estos archivos
+!/PS*/
+!/README.md
+!/.gitignore
+
+# Archivos auxiliares de LaTeX
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.fdb_latexmk
+*.fls
