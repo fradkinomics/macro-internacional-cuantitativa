@@ -8,6 +8,7 @@ Los modelos se resuelven y simulan en [Julia](https://julialang.org); los inform
 |---|---|---|---|
 | [PS1](PS1/) | Modelos de búsqueda (McCall, 1970) | [`ps1.jl`](PS1/ps1.jl) | [PDF](PS1/informe/MacroInternacional_ps1_Fradkin.pdf) |
 | [PS2](PS2/) | Problema de la torta | [`ps2.jl`](PS2/ps2.jl) | [PDF](PS2/informe/MacroInternacional_ps2_Fradkin.pdf) |
+| [PS3](PS3/) | Deuda soberana con default (Arellano, 2008) | [`ps3.jl`](PS3/ps3.jl) | [PDF](PS3/informe/MacroInternacional_ps3_Fradkin.pdf) |
 
 ## PS1 — Modelos de búsqueda
 
@@ -29,6 +30,16 @@ Se resuelve el problema de consumo y ahorro con utilidad CRRA por iteración de 
 
 `cakeeating.jl` e `itpcake.jl` son los códigos base provistos en el curso. `ps2.jl` contiene la resolución del problem set.
 
+## PS3 — Deuda soberana con default
+
+Se resuelve el modelo de deuda con default de Arellano (2008), en el que un soberano emite deuda defaulteable a acreedores extranjeros neutrales al riesgo, con shocks de valor extremo que suavizan la decisión de default. Se estudia:
+
+1. **Probabilidad de default y funciones de valor** según el parámetro de escala de los shocks.
+2. **Deuda óptima** en función de la paciencia del soberano, del costo del default y de los precios de la deuda.
+3. **Simulaciones**: frecuencia de default, nivel de deuda y spreads según los parámetros del modelo.
+
+`arellano.jl`, `deuda.jl` y `simuldef.jl` son los códigos base provistos en el curso. `ps3.jl` contiene la resolución del problem set.
+
 ## Cómo reproducir los resultados
 
 Requiere [Julia](https://julialang.org/downloads/) 1.10 o superior.
@@ -38,9 +49,10 @@ git clone https://github.com/fradkinomics/macro-internacional-cuantitativa.git
 cd macro-internacional-cuantitativa
 julia PS1/ps1.jl
 julia PS2/ps2.jl
+julia PS3/ps3.jl
 ```
 
-La primera ejecución instala automáticamente las versiones exactas de los paquetes registradas en el `Project.toml` y el `Manifest.toml` de cada carpeta. Los gráficos se guardan en `PS1/figures/` y `PS2/figures/`.
+La primera ejecución instala automáticamente las versiones exactas de los paquetes registradas en el `Project.toml` y el `Manifest.toml` de cada carpeta. Los gráficos se guardan en la carpeta `figures/` de cada problem set.
 
 ## Autor
 
