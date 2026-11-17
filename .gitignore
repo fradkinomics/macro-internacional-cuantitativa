@@ -12,3 +12,6 @@
 *.synctex.gz
 *.fdb_latexmk
 *.fls
+
+# Salida de texto de las corridas
+resultados.txt
