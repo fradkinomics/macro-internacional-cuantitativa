@@ -34,9 +34,10 @@ Se resuelve el problema de consumo y ahorro con utilidad CRRA por iteración de 
 
 Se resuelve el modelo de deuda con default de Arellano (2008), en el que un soberano emite deuda defaulteable a acreedores extranjeros neutrales al riesgo, con shocks de valor extremo que suavizan la decisión de default. Se estudia:
 
-1. **Probabilidad de default y funciones de valor** según el parámetro de escala de los shocks.
-2. **Deuda óptima** en función de la paciencia del soberano, del costo del default y de los precios de la deuda.
-3. **Simulaciones**: frecuencia de default, nivel de deuda y spreads según los parámetros del modelo.
+1. **Regiones de repago y default**: probabilidad de default en función de la deuda y el ingreso, y cómo se mueve con la paciencia y el costo de default.
+2. **Shocks de preferencias**: cómo el parámetro de escala de los shocks cambia las funciones de valor.
+3. **Defaults por precios**: comparación con un gobierno que enfrenta precios libres de riesgo, resuelta con la jerarquía de tipos del código.
+4. **Calibración**: deuda, spreads y frecuencia de default en la distribución ergódica según la paciencia y el costo de default.
 
 `arellano.jl`, `deuda.jl` y `simuldef.jl` son los códigos base provistos en el curso. `ps3.jl` contiene la resolución del problem set.
 

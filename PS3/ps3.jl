@@ -5,6 +5,11 @@ cd(@__DIR__)                        # trabaja en la carpeta del archivo
 include("simuldef.jl")              # carga simuldef.jl, que a su vez incluye arellano.jl y deuda.jl
 mkpath("figures")                   # carpeta de gráficos
 
+# Corrección del spread (mail del profesor, 17/11). simuldef.jl usa (1+r)(1/q - 1), la fórmula del modelo con
+# deuda de largo plazo, donde el bono libre de riesgo vale 1. Acá el bono promete pagar 1, así que sin riesgo vale
+# 1/(1+r), y el spread trimestral es la tasa implícita 1/q - 1 menos r. Con q = 1/(1+r) da cero, como debe ser.
+get_spread(qt, dd::Arellano) = 1 / qt - (1 + dd.pars.r)
+
 
 # ===================== Constantes de todo el trabajo =====================
 const SEMILLA = 1234                                   # semilla de las simulaciones
@@ -85,8 +90,10 @@ function modelo(nombre; actualizar_q = true, robusto = false, kw...)
     return dd
 end
 
-# b*(y): nivel de deuda donde la probabilidad de default cruza el umbral (interpolando entre puntos de la grilla).
-# NaN si la probabilidad no llega al umbral dentro de la grilla.
+# b*(y): nivel de deuda donde la probabilidad de default cruza el umbral. Para cada y se interpola P(b, y) en b y
+# se minimiza b -> (P(b, y) - umbral)^2 (opción sugerida en la consigna). La búsqueda se hace entre los dos puntos
+# de la grilla donde P cruza el umbral, porque fuera de ahí la función es casi plana (P = 0 o P = 1) y el
+# minimizador podría quedarse en esa zona. NaN si P no llega al umbral dentro de la grilla.
 function bstar(dd; umbral = UMBRAL)
     bs = fill(NaN, length(dd.ygrid))
     for jy in eachindex(dd.ygrid)
@@ -97,8 +104,9 @@ function bstar(dd; umbral = UMBRAL)
         elseif jb == 1
             bs[jy] = dd.bgrid[1]
         else
-            w = (umbral - p[jb-1]) / (p[jb] - p[jb-1])
-            bs[jy] = dd.bgrid[jb-1] + w * (dd.bgrid[jb] - dd.bgrid[jb-1])
+            itp = interpolate((dd.bgrid,), p, Gridded(Linear()))
+            res = Optim.optimize(b -> (itp(b) - umbral)^2, dd.bgrid[jb-1], dd.bgrid[jb])
+            bs[jy] = Optim.minimizer(res)
         end
     end
     return bs
@@ -164,12 +172,6 @@ informar("bgrid: ", length(dd0.bgrid), " puntos de ", dd0.bgrid[1], " a ", dd0.b
 
 grafico_contour(dd0, "figures/prob_contour.pdf")
 
-jys = [1, 6, 11, 16, 21]
-informar("P(b,y) base. Columnas: y = ", fila(dd0.ygrid[jys]))
-for bv in 0:0.05:0.6
-    jb = argmin(abs.(dd0.bgrid .- bv))
-    informar("  b = ", rpad(round(dd0.bgrid[jb], digits = 3), 6), fila(dd0.prob[jb, jys]))
-end
 informar("P creciente en b para todo y: ", all(diff(dd0.prob, dims = 1) .>= -1e-8),
          " | P decreciente en y para todo b: ", all(diff(dd0.prob, dims = 2) .<= 1e-8))
 informar("máx de P que sube con y: ", round(maximum(diff(dd0.prob, dims = 2)), sigdigits = 3))
@@ -201,44 +203,65 @@ informar("===== 1.2 Shocks de preferencias =====")
 mods_chi = Dict(χ => modelo("χ = $χ"; χ = χ, robusto = (χ < CHI0)) for χ in CHIS)
 mods_chi[CHI0] = dd0
 
+# Chequeo: vR y vD se cruzan dentro del gráfico (b ≤ B_MAX_12) con y = 1
 for χ in sort(collect(keys(mods_chi)))
     dd = mods_chi[χ]
-    vR, vD, V = dd.vR[:, JY], dd.vD[JY], dd.v[:, JY]
-    jb = findfirst(vR .< vD)                               # primer punto donde conviene defaultear
-    informar("χ = ", χ, " | vD(y=1) = ", r4(vD), " | vR(0) = ", r4(vR[1]), " | vR(bmax) = ", r4(vR[end]),
-             " | V(0) = ", r4(V[1]), " | V(bmax) = ", r4(V[end]))
-    if jb === nothing || jb == 1
-        informar("   vR y vD no se cruzan dentro de la grilla")
-    else
-        w  = (vR[jb-1] - vD) / (vR[jb-1] - vR[jb])
-        bc = dd.bgrid[jb-1] + w * (dd.bgrid[jb] - dd.bgrid[jb-1])
-        informar("   cruce vR = vD en b = ", r4(bc), " | V - max(vR, vD) en el punto de grilla anterior al cruce = ",
-                 r4(V[jb-1] - max(vR[jb-1], vD)), " | χ·log 2 = ", r4(χ * log(2)))
-    end
-    informar("   máx de V - max(vR, vD) en toda la grilla de b = ", round(maximum(V .- max.(vR, vD)), sigdigits = 3))
-    for bv in 0:0.1:0.6
-        k = argmin(abs.(dd.bgrid .- bv))
-        informar("   b = ", rpad(round(dd.bgrid[k], digits = 3), 6), "| vR = ", r4(vR[k]), " | V = ", r4(V[k]),
-                 " | P = ", r4(dd.prob[k, JY]))
-    end
+    jb = findfirst(dd.vR[:, JY] .< dd.vD[JY])
+    informar("χ = ", rpad(χ, 7), "| primer b con vR < vD: ", jb === nothing ? "ninguno" : r4(dd.bgrid[jb]),
+             " | máx de V - max(vR, vD) = ", round(maximum(dd.v[:, JY] .- max.(dd.vR[:, JY], dd.vD[JY])), sigdigits = 3),
+             " | χ log 2 = ", round(χ * log(2), sigdigits = 3), " | P(0, y=1) = ", r4(dd.prob[1, JY]))
 end
 
-# Un gráfico por χ: vR y vD abajo, 𝒱 arriba
-for (χ, nombre) in zip(CHIS, ("valores_chi_bajo", "valores_chi_alto"))
-    dd = mods_chi[χ]; m = dd.bgrid .<= B_MAX_12; b = dd.bgrid[m]
-    savefig(grafico([b, b, b], [dd.vR[m, JY], fill(dd.vD[JY], length(b)), dd.v[m, JY]],
-                    ["v<sup>R</sup>(b, y)", "v<sup>D</sup>(y)", "V(b, y)"], [AZUL, VERDE, ROJO],
-                    xt = "b", yt = "valor"), "figures/$nombre.pdf")
+# Un solo gráfico para los dos χ: color = función de valor, trazo = χ. vD no depende de b, así que va como una
+# línea horizontal (shape de PlotlyJS); las trazas de un solo punto sólo sirven para que aparezca en la leyenda.
+function grafico_valores(mods, chis, archivo)
+    trazos = ["solid", "dash"]
+    tr_vR, tr_V, formas = [], [], []
+    for (χ, dash) in zip(chis, trazos)
+        dd = mods[χ]; m = dd.bgrid .<= B_MAX_12; b = dd.bgrid[m]
+        push!(tr_vR, scatter(x = b, y = dd.vR[m, JY], mode = "lines", name = "v<sup>R</sup>(b, y), χ = $χ",
+                             line = attr(color = AZUL, dash = dash, width = 2.5)))
+        push!(tr_vR, scatter(x = [b[1]], y = [dd.vD[JY]], mode = "lines", name = "v<sup>D</sup>(y), χ = $χ",
+                             line = attr(color = VERDE, dash = dash, width = 2.5)))
+        push!(formas, attr(type = "line", layer = "below", xref = "x", x0 = b[1], x1 = b[end], yref = "y", y0 = dd.vD[JY], y1 = dd.vD[JY],
+                           line = attr(color = VERDE, dash = dash, width = 2.5)))
+        push!(tr_V, scatter(x = b, y = dd.v[m, JY], mode = "lines", name = "V(b, y), χ = $χ",
+                            line = attr(color = ROJO, dash = dash, width = 2.5)))
+    end
+    lay = Layout(xaxis_title = "b", yaxis_title = "valor", margin = attr(t = 20), shapes = formas)
+    savefig(plot(map(identity, [tr_vR; tr_V]), lay), archivo)       # V va al final para quedar arriba
 end
+grafico_valores(mods_chi, CHIS, "figures/valores_chi.pdf")
 
 
 # ===================== 1.3 Cuántos defaults son por los precios? =====================
 informar("===== 1.3 Defaults por precios =====")
-# El constructor arranca con q = 1/(1+r) en toda la grilla: el precio de una deuda que se repaga siempre.
-# Sin actualizar q, el gobierno resuelve su problema (con opción de default) frente a ese precio.
-ddq = modelo("Precios de repago seguro"; actualizar_q = false, robusto = true)
-informar("q fijo = ", r4(ddq.q[1, 1]), " en toda la grilla: ", all(ddq.q .≈ 1 / (1 + ddq.pars.r)))
-informar("P con precios fijos: mín = ", round(minimum(ddq.prob), sigdigits = 3), " | máx = ", round(maximum(ddq.prob), sigdigits = 3))
+# Opción con jerarquía de tipos. SinRiesgo envuelve un costo de default, así que Arellano{SinRiesgo{OG}} sigue siendo
+# un Arellano <: Default: usa h, value_default y vfi_iter! del modelo con default. Lo único que cambia, por
+# multiple dispatch, es debtprice, que pasa a ser la del modelo sin default (deuda.jl): 1/(1+r) para todo b' e y.
+# Así se puede usar mpe! del curso sin tocarlo. mpe! sigue actualizando dd.q, pero el gobierno ya no lo mira.
+struct SinRiesgo{C<:DefaultCost} <: DefaultCost
+    base::C
+end
+h(yv, c::SinRiesgo) = h(yv, c.base)
+debtprice(dd::Arellano{<:SinRiesgo}, _, _, _) = 1 / (1 + dd.pars.r)
+
+function modelo_sin_riesgo(nombre; kw...)
+    base = Arellano(; kw...)
+    dd = Arellano{SinRiesgo{typeof(base.cost)}}(base.pars, SinRiesgo(base.cost), base.bgrid, base.ygrid, base.Py,
+         base.v, base.vR, base.vD, base.prob, base.gc, base.gb, base.q)
+    t0 = time()
+    ROBUSTO[] = true
+    mpe!(dd; maxiter = MAXITER, verbose = false)
+    iter, dist = resolver!(dd)                  # chequeo: si mpe! convergió, una iteración más ya cumple la tolerancia
+    ROBUSTO[] = false
+    informar(rpad(nombre, 34), "| mpe! del curso | iteración de chequeo: ", iter, " (dist = ", round(dist, sigdigits = 3),
+             ") | ", round(time() - t0, digits = 1), " s")
+    return dd
+end
+
+ddq = modelo_sin_riesgo("Precios de repago seguro")
+informar("precio que enfrenta el gobierno: ", r4(debtprice(ddq, 0.3, 1.0, nothing)), " = 1/(1+r)")
 informar("y                        = ", fila(dd0.ygrid))
 informar("b*(y) equilibrio         = ", fila(bstar(dd0)))
 informar("b*(y) precios fijos      = ", fila(bstar(ddq)))
@@ -247,16 +270,7 @@ informar("Puntos (b,y) con P > 0.5: equilibrio = ", sum(D0), " | precios fijos =
 informar("   sólo en equilibrio = ", sum(D0 .& .!Dq), " | sólo con precios fijos = ", sum(Dq .& .!D0), " | en ambos = ", sum(D0 .& Dq))
 informar("P_fijos - P_equilibrio: mín = ", round(minimum(ddq.prob - dd0.prob), sigdigits = 3),
          " | máx = ", round(maximum(ddq.prob - dd0.prob), sigdigits = 3))
-informar("vD(y) equilibrio    = ", fila(dd0.vD))
-informar("vD(y) precios fijos = ", fila(ddq.vD))
-informar("b'(b, y=1) equilibrio:    ", fila([dd0.gb[argmin(abs.(dd0.bgrid .- bv)), JY] for bv in 0:0.1:0.6]))
 informar("b'(b, y=1) precios fijos: ", fila([ddq.gb[argmin(abs.(ddq.bgrid .- bv)), JY] for bv in 0:0.1:0.6]))
-informar("P(b, y) precios fijos. Columnas: y = ", fila(ddq.ygrid[jys]))
-for bv in 0:0.1:0.6
-    jb = argmin(abs.(ddq.bgrid .- bv))
-    informar("  b = ", rpad(round(ddq.bgrid[jb], digits = 3), 6), fila(ddq.prob[jb, jys]))
-end
-
 grafico_contour(ddq, "figures/prob_contour_precios.pdf")
 m0, mq = isfinite.(bstar(dd0)), isfinite.(bstar(ddq))
 savefig(grafico([ddq.ygrid[mq], dd0.ygrid[m0]], [bstar(ddq)[mq], bstar(dd0)[m0]],
@@ -264,9 +278,8 @@ savefig(grafico([ddq.ygrid[mq], dd0.ygrid[m0]], [bstar(ddq)[mq], bstar(dd0)[m0]]
         "figures/bstar_precios.pdf")
 
 # Chequeo: con precios fijos el gobierno se endeuda hasta el tope de la grilla, así que b*(y) puede depender de bmax
-ddq2 = modelo("Precios fijos, bmax = $BMAX_ROB"; actualizar_q = false, robusto = true, bmax = BMAX_ROB)
+ddq2 = modelo_sin_riesgo("Precios fijos, bmax = $BMAX_ROB"; bmax = BMAX_ROB)
 informar("b*(y) precios fijos, bmax = ", BMAX_ROB, ": ", fila(bstar(ddq2)))
-informar("b'(b, y=1) precios fijos, bmax = ", BMAX_ROB, ": ", fila([ddq2.gb[argmin(abs.(ddq2.bgrid .- bv)), JY] for bv in 0:0.2:1.2]))
 
 informar("===== FIN EJERCICIO 1 =====")
 
@@ -274,16 +287,13 @@ informar("===== FIN EJERCICIO 1 =====")
 # ===================== 2. Calibración del modelo de default =====================
 informar("===== 2 Calibración =====")
 
-# Momentos del curso (deuda/PBI, spread promedio y desvío) más la mediana del spread, la frecuencia anual de
-# default (defaults nuevos por cada 100 años con acceso al mercado) y el % del tiempo en default
+# Momentos del curso (deuda/PBI, spread promedio y desvío) más la frecuencia anual de default
+# (defaults nuevos por cada 100 años con acceso al mercado)
 function momentos(pp::SimulPath)
     M = moments(pp)
     d = pp[:d]
-    rep_indices = [t for t in eachindex(pp) if pp[:d, t] == 0]
     nuevos = count(t -> d[t] == 1 && d[t-1] == 0, 2:length(d))
-    M[:medspr]  = median(pp[:spr][rep_indices]) * 10_000
     M[:deffreq] = 100 * 4 * nuevos / max(1, count(==(0), d[1:end-1]))
-    M[:tdef]    = 100 * mean(d)
     return M
 end
 
@@ -299,7 +309,7 @@ function momentos(dd::Default; semilla = SEMILLA)
     return momentos([subpath(simul(dd, T = T_SIM + T_BURN), T_BURN + 1, T_SIM + T_BURN) for _ in 1:N_SIM])
 end
 
-const CLAVES = [:debtGDP, :avgspr, :stdspr, :medspr, :deffreq, :tdef]
+const CLAVES = [:debtGDP, :avgspr, :stdspr, :deffreq]
 
 # Momentos de una familia de modelos, con dos semillas distintas para chequear que no dependen del azar
 function tabla_momentos(mods, valores, simbolo)
@@ -336,31 +346,11 @@ informar("--- Momentos en función de yh (β = ", BETA0, ") ---")
 Ms_yh = tabla_momentos(mods_yh, YHS, "yh")
 grafico_momentos(YHS, Ms_yh, "yh", "yh")
 
-# Chequeo: cuánto de los spreads y de la frecuencia de default viene del shock de preferencias
-informar("--- Momentos en función de χ (β = ", BETA0, ", yh = ", YH0, ") ---")
-CHIS_TODOS = sort(collect(keys(mods_chi)))
-Ms_chi = tabla_momentos(mods_chi, CHIS_TODOS, "χ")
-for χ in CHIS_TODOS
-    dd = mods_chi[χ]
-    informar("χ = ", rpad(χ, 7), "| P(b = 0, y) con y = ", fila(dd.ygrid[[1, 6, 11]]), " : ", fila(dd.prob[1, [1, 6, 11]]),
-             " | b*(y) en los mismos y: ", fila(bstar(dd)[[1, 6, 11]]))
-end
-
-# Diagnóstico de una simulación del modelo base
-pp = simul(dd0, T = T_SIM)
-rep = [t for t in eachindex(pp) if pp[:d, t] == 0]
-informar("Simulación base (T = ", T_SIM, "): spread máx = ", round(maximum(pp[:spr][rep]) * 1e4, digits = 1),
-         " pb | spread no finito: ", count(!isfinite, pp[:spr][rep]),
-         " | b/y medio en repago = ", r4(mean(pp[:b][rep] ./ pp[:y][rep])), " | b máx = ", r4(maximum(pp[:b])),
-         " | y medio en default = ", r4(mean(pp[:y][[t for t in eachindex(pp) if pp[:d, t] == 1]])),
-         " | y medio en repago = ", r4(mean(pp[:y][rep])))
-
 informar("===== FIN =====")
 close(LOG)
 
-# Copia las figuras (y el logo, si falta) a informe/ para que esa carpeta compile sola
+# Copia las figuras a informe/ para que esa carpeta compile sola (el logo, logo_udesa.jpg, ya está ahí)
 mkpath("informe")
 for f in readdir("figures")
     cp(joinpath("figures", f), joinpath("informe", f), force = true)
 end
-isfile("informe/logo_udesa.pdf") || cp("../PS2/informe/logo_udesa.pdf", "informe/logo_udesa.pdf")
